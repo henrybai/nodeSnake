@@ -1,0 +1,446 @@
+<html>
+	<head>
+		<style type="text/css">
+			#canvas { border: 1px solid DarkGray; }
+		</style>
+		<title>Snake</title>
+		<script src="/json.js"></script> <!-- for ie -->
+		<script src="/socket.io/socket.io.js"></script>
+		<script src="/jquery-1.4.3.min.js"></script>
+		<script src="/jquery.timers.js"></script>
+		
+		<script src="/snake.js"></script>
+		<script src="/point.js"></script>
+		<script src="/direction.js"></script>
+		
+		<script src="/variables.js"></script>
+		<script>
+			var time;
+			var playerId;
+			
+			var ctx;
+			var WIDTH;
+			var HEIGHT;
+			var tilesWidth;
+			var tilesHeight;
+			
+			var directionQueue = [];
+			
+			$(document).ready(function() {
+				ctx = $('#canvas')[0].getContext("2d");
+				WIDTH = $('#canvas').width();
+				HEIGHT = $('#canvas').height();
+				tilesWidth = WIDTH / W;
+				tilesHeight = HEIGHT / W;
+				
+				WriteMessage('Connecting...', false);
+				
+			});
+			
+			$(document).keydown(function(event) {
+				var msg = "";
+				var changeDirection = false;
+				switch(event.which)
+				{
+					case 38:	// UP
+						if(snakes[playerId].changeDirection(direction.Up))
+							changeDirection = true;
+						break;
+					case 40:	// DOWN
+						if(snakes[playerId].changeDirection(direction.Down))
+							changeDirection = true;
+						break;
+					case 37:	// LEFT
+						if(snakes[playerId].changeDirection(direction.Left))
+							changeDirection = true;
+						break;
+					case 39:	// RIGHT
+						if(snakes[playerId].changeDirection(direction.Right))
+							changeDirection = true;
+						break;
+					case 27:	// ESC
+						break;
+					case 13:	// Enter
+						msg = {ready: true, id: playerId}
+						socket.send(msg);
+						break;
+				}
+				if (changeDirection) {
+					sendSnake(); 
+					
+						
+				}
+				return false;
+			});
+			
+		</script>
+		<script>
+	
+
+			var socket = new io.Socket(null, {port: 8080});
+			socket.connect();
+			
+			socket.on('connect', function(server){
+			});
+				
+			socket.on('message', function(packet){
+				// Start game
+				if(packet.start)
+				{
+					start();
+				}
+				
+				
+				if(packet.disconnect)
+				{
+					endGame();
+				}
+				// Information packet
+				if(packet.msg)
+				{
+					playerId = packet.id;
+					WriteMessage(packet.msg, false);
+				}
+				
+				if (packet.isReady) 
+				{
+					WriteMessage("Ready", true);
+				}
+				
+				// End game
+				if(packet.gameOver){
+				
+					var ending = "You lose!";
+					if(packet.id == (1 - playerId))	ending = "You win!";
+					else if(packet.id == 2)		ending = "Draw game.";
+					
+					WriteMessage(("Game Over. " + ending + " Please Enter to try again."), true);
+					endGame();
+				}
+				
+				if (packet.food) {
+					p =JSON.parse(packet.food);
+					foods[packet.foodID] = new Point(p.x, p.y);
+				}
+				// Sync Food coordinate
+				//if(packet.fId){
+				//	foods[packet.fId] = new Point(JSON.parse(packet.food));
+				//}
+				
+				// Sync Snake tat change direction
+				if(packet.id && packet.snake)
+				{
+					var s = JSON.parse(packet.snake);
+					snakes[packet.id].pts = decodePoints(s.p).slice();
+					snakes[packet.id].lag = (s.l);
+					snakes[packet.id].directQueue = (s.dQ).slice();
+					snakes[packet.id].direct = (s.d);
+					snakes[packet.id].score = s.s;
+					draw();
+				
+					var len = JSON.stringify(packet).length;
+					WriteMessage2( "bytes received: " + len + " bytes" , 10, 10);
+					
+				}
+			});
+			
+			socket.on('disconnect', function(){
+				endGame();
+				WriteMessage('You have disconnected from the server.', false);
+			});
+			
+			function sendSnake(id) {
+				if (!id) {
+					id = playerId;
+				}
+				var s = {};
+				s.p = encodePoints(snakes[id].pts);
+				s.l = snakes[id].lag;
+				s.dQ = snakes[id].directQueue;
+				s.d = snakes[id].direct;
+				s.s = snakes[id].score;
+				
+				msg = {snake: JSON.stringify(s),  id: id};
+				socket.send(msg);
+			}
+			
+			function encodePoints(points) {
+				if (points.length < 2) return points;
+				
+				var encoded = [];
+				encoded.push(points[0]);
+				for(var i in points) {
+					if (points[i].x == encoded[encoded.length-1].x || points[i].y == encoded[encoded.length-1].y) {
+						continue;
+					}
+					encoded.push(points[i-1]);
+				}
+				encoded.push(points[points.length-1]);
+				return encoded;
+			}
+
+			function decodePoints(points) {
+				var decoded = [];
+				decoded.push(new Point(points[0]));
+				for(var i = 1; i<points.length; i++) {
+					if (points[i].y == points[i-1].y && points[i].x  > points[i-1].x)  { //going right
+						var diff = Math.abs(points[i].x - points[i-1].x);   
+						var j = 0;
+						while (++j < diff) {
+							decoded.push(new Point(points[i-1].x + j,points[i-1].y)); 
+						}
+						decoded.push(new Point(points[i]));
+					}
+					else if (points[i].y == points[i-1].y && points[i].x  < points[i-1].x)  { //going left
+						var diff = Math.abs(points[i-1].x -  points[i].x);   
+						var j = 0;
+						while (++j < diff) {
+							decoded.push(new Point(points[i-1].x - j,points[i-1].y)); 
+						}
+						decoded.push(new Point(points[i]));
+					}
+					else if (points[i].x == points[i-1].x && points[i].y  < points[i-1].y)  { //going up
+						var diff = Math.abs(points[i-1].y -  points[i].y);   
+						var j = 0;
+						while (++j < diff) {
+							decoded.push(new Point(points[i-1].x, points[i-1].y - j)); 
+						}
+						decoded.push(new Point(points[i]));
+					}
+					else if (points[i].x == points[i-1].x && points[i].y  > points[i-1].y)  { //going down 
+						var diff = Math.abs(points[i-1].y -  points[i].y);   
+						var j = 0;
+						while (++j < diff) {
+							decoded.push(new Point(points[i-1].x, points[i-1].y + j)); 
+						}
+						decoded.push(new Point(points[i]));
+					}
+				}
+				return decoded;
+			}
+			
+			function start()
+			{
+				reset();
+				foods[playerId] = getNonSnakePoint();
+				sendSnake();
+				sendSnake(1-playerId);
+				socket.send({food: JSON.stringify(foods[playerId]), foodID: playerId, id: playerId});
+				
+				$(document).everyTime(80, "gameLoop", gameLoop, 0);
+				//$(document).everyTime(2000, "sendSnake", sendSnake, 0);
+			}
+			
+			function reset()
+			{
+				amAlive = true;
+				var startingPointA = new Point(10, 10);
+				var startingPointB = new Point(tilesWidth - 10, tilesHeight - 10);
+				snakes[0] = new Snake(startingPointA, length, direction.Down);
+				snakes[1] = new Snake(startingPointB, length, direction.Up);
+
+				//snakes[0] = new Snake(startingPointA, length, Math.floor(Math.random()*4+1));
+				//snakes[1] = new Snake(startingPointB, length, Math.floor(Math.random()*4+1));
+								
+				foods[0] = new Point(-1,-1);
+				foods[1] = new Point(-1,-1);
+			}
+			function getStartingPoint()  {
+				var p = randomPoint(tilesWidth -10, tilesHeight - 10);
+				p.x = p.x + 5;
+				p.y = p.y + 5;
+				return p;
+			}
+			
+			function endGame()
+			{
+				
+				$(document).stopTime("gameLoop", gameLoop);
+				//$(document).stopTime("sendSnake", sendSnake);
+				
+			}
+						
+						
+			function isAlive(snake)
+			{
+				return ((snake.pts[0].y >= 0) && (snake.pts[0].y < tilesHeight) &&
+						(snake.pts[0].x >= 0) && (snake.pts[0].x < tilesWidth));
+				
+			}
+			function hitSnake(snake)
+ 			{
+				var head = snake.getHead();
+				for (var i in snakes) {
+					for (var j in snakes[i].pts) {
+						if (head == snakes[i].pts[j]) continue; //ownself;
+						if (head.hit(snakes[i].pts[j])) return true;
+					}
+				}
+				return false;
+			
+			}
+			
+			
+			function gameLoop()
+			{
+				if(amAlive)
+				{
+					move();
+					
+					check();
+					
+
+					amAlive = 	((isAlive(snakes[playerId])) &&		
+								!hitSnake(snakes[playerId]) && 
+								(snakes[1-playerId].score < score));											
+		
+/*					opponentAlive = (isAlive(snakes[1-playerId])) &&		
+									!snakes[1-playerId].suicide() &&							
+									(!snakes[1-playerId].hitSnake(snakes[playerId])) &&
+									(snakes[playerId].score < score);
+*/					
+					if (amAlive) {
+						draw();
+					}
+				}
+				if (!amAlive)
+				{
+					sendSnake();
+					var msg = {gameOver: true, id:playerId};
+					socket.send(msg);
+		
+					endGame();
+				}
+			}
+
+			function move()
+			{
+				for(var i in snakes)
+					snakes[i].move();
+			}
+
+			function check()
+			{
+				// check if eaten food
+				
+				for(var foodId in foods)
+				{
+					if(snakes[playerId].getHead().hit(foods[foodId]))
+					{
+						snakes[playerId].grow();
+						foods[foodId] = getNonSnakePoint();  //just let food dissapear
+						
+						socket.send({food: JSON.stringify(foods[foodId]), foodID: foodId, id: playerId});
+						sendSnake();
+					} 
+				}
+				
+			
+			}
+			
+			function getNonSnakePoint()
+			{
+				
+				do {
+					fdPoint = randomPoint(tilesWidth-1, tilesHeight-1);
+				} while(snakes[0].contains(fdPoint) || snakes[1].contains(fdPoint) || foods[0].hit(fdPoint) || foods[1].hit(fdPoint));
+				
+				return fdPoint;
+			}
+						
+						
+						
+			function randomPoint(maxX, maxY)
+			{
+				return new Point(Math.floor(Math.random()*maxX), Math.floor(Math.random()*maxY));
+			}
+
+
+			function draw(){
+				clearCanvas();				
+				
+				// parses it to Point()
+				//for(var  in foods)
+				//	foods[i] = new Point(foods[i]);
+				
+				drawFood(foods[0], "#0000FF");
+				drawFood(foods[1], "#FF0000");
+				drawSnakes();
+				
+				//draw Scores
+				ctx.fillStyle    = '#000';
+				ctx.font         = 'italic 20px sans-serif';
+				ctx.textBaseline = 'top';
+				ctx.fillText  (("You: " + snakes[playerId].score), 35, 5);
+				ctx.fillStyle    = '#AAA';
+				ctx.fillText  (("Opp: " + snakes[1-playerId].score), 700, 5);
+			}
+						
+			
+			function clearCanvas() {
+				ctx.clearRect(0, 0, WIDTH, HEIGHT);
+			}
+			function drawFood(foodPoint, color) {
+				ctx.fillStyle = color
+				ctx.beginPath();
+				ctx.rect(foodPoint.x*W, foodPoint.y*W, W, W);
+				ctx.closePath();
+				ctx.fill();
+			}
+			
+			function drawSnakes() {
+				for(var i in snakes)
+				{
+					for(var j in snakes[i].pts)
+					{
+						var point = snakes[i].pts[j];
+						ctx.fillStyle = (i == playerId) ? "#000" : "#AAA";
+						ctx.beginPath();
+						ctx.rect(point.x*W, point.y*W, W, W);
+						ctx.closePath();
+						ctx.fill();
+					}
+				}
+			}
+			
+			function WriteMessage(message, cont)
+			{
+				if(!cont) clearCanvas();
+				
+				ctx.textAlign		= 'center'
+				ctx.fillStyle    	= cont ? '#F00' : '#000';
+				ctx.font         	= 'italic 20px sans-serif';
+				ctx.textBaseline 	= 'top';
+				
+				ctx.fillText(message, WIDTH / 2,  (cont ? HEIGHT / 2 : (HEIGHT / 2)-40));
+			}	
+			
+			function WriteMessage2(message, x, y)
+			{
+				var ctx2 = $('#canvas2')[0].getContext("2d");
+				ctx2.clearRect(0, 0, $('#canvas2').width(), $('#canvas2').height());
+				
+				ctx2.textAlign		= 'left'
+				ctx2.fillStyle    	= '#333';
+				ctx2.font         	= 'italic 15px sans-serif';
+				ctx2.textBaseline 	= 'top';
+			
+				ctx2.fillText(message, x, y);
+			}	
+
+		
+		</script>
+		
+	</head>
+	<body>
+		<div id="game" style="margin: 15px;">
+			<h2> The 2-player Snake game </h2>
+			<p> 
+				Built on node.js and socket.io with HTML5 Canvas.  
+				First to 25 points wins!
+			</p>
+			<canvas id="canvas2" width="800" height="35"></canvas><br/>
+			<canvas id="canvas" width="800" height="700"></canvas>
+		</div>
+	</body>
+</html>
