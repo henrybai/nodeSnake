@@ -27,6 +27,7 @@ var HEIGHT;
 var TILESWIDTH;
 var TILESHEIGHT;
 var LOOPINTERVAL = 90;
+var gameLoopID;
 
 var amAlive = true;
 var gameStart = false;
@@ -115,7 +116,7 @@ socket.on('message', function(packet){
 		start();
 	}
 
-	// Sync Snake tat change direction
+	// Sync Snake that change direction
 	if(packet.id && packet.snake)
 	{
 		var s = JSON.parse(packet.snake);
@@ -210,22 +211,25 @@ function sendSnake(message, id) {
 
 function start()
 {
-	reset();
-	gameStart = true;
-	sendAllSnakes();
-	sendMsg({food: JSON.stringify(foods[playerId]), foodID: playerId});
-
-	$(document).everyTime(LOOPINTERVAL, "gameLoop", gameLoop, 0);
-	showDebugMsg();
-	//$(document).everyTime(2000, "sendSnake", sendSnake, 0);
+	if (!gameStart) {
+		reset();
+		gameStart = true;
+		sendAllSnakes();
+		sendMsg({food: JSON.stringify(foods[playerId]), foodID: playerId});
+		gameLoopID = window.setInterval(gameLoop, LOOPINTERVAL);
+		showDebugMsg();
+		//$(document).everyTime(2000, "sendSnake", sendSnake, 0);
+	}
 }
 
 
 function endGame()
 {
-	amAlive = false;
-	gameStart = false;
-	$(document).stopTime("gameLoop", gameLoop);
+	if (gameStart) {
+		amAlive = false;
+		gameStart = false;
+		window.clearInterval(gameLoopID);
+	}
 }
 
 
