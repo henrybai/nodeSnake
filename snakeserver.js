@@ -1,6 +1,6 @@
 // includes
-require('./point.js');
-require('./snake.js');
+require(__dirname + '/point.js');
+require(__dirname + '/snake.js');
 
 // game variables
 var gameStart = false;
@@ -27,14 +27,8 @@ server = http.createServer(function(req, res){
 				res.end();
 			});
 			break;
-		case '/snake.html':
-		case '/json.js':
-		case '/snake.js':
-		case '/point.js':
-		case '/variables.js':
-		case '/direction.js':
-		case '/jquery-1.4.3.min.js':
-		case '/jquery.timers.js':
+		default:
+	
 			fs.readFile(__dirname + path, function(err, data){
 				if (err) return send404(res);
 				res.writeHead(200, {'Content-Type': 'text/javascript'})
@@ -42,8 +36,6 @@ server = http.createServer(function(req, res){
 				res.end();
 			});
 			break;
-		
-		default: send404(res);
 	}
 });
 
@@ -80,16 +72,16 @@ socket.on('connection', function(client){
 		//if(!msg.id || msg.id > 2 || players[msg.id] != client)	return;
 	
 		var id = msg.id;
-		//console.log(msg);
+		console.log(msg);
 		if(gameStart)
 		{
 			if(msg.snake || msg.food) 
 			{
-				players[1 - id].send(msg);
+				client.broadcast(msg);
 			}
-			else if (msg.gameOver) {
+			if (msg.gameOver) {
 				console.log("game ends, Player " + (1 - msg.id) + " wins.");
-				broadcast(msg);
+				client.send(msg);
 				endGame();
 			}
 		}
@@ -112,7 +104,7 @@ socket.on('connection', function(client){
 			if(players[i] == client) {	
 				players.splice(i,1); 
 				numOfPlayers--;
-				broadcast({msg: ['The other party has disconnected. Waiting for 2 players to start game.'] , disconnect: 1});
+				sendAll({msg: ['The other party has disconnected. Waiting for 2 players to start game.'] , disconnect: 1});
 				reset();
 			}
 		} 
@@ -120,7 +112,7 @@ socket.on('connection', function(client){
 	});
 });
 
-function broadcast(msg)
+function sendAll(msg)
 {
 	for(var i in players)
 	{	
@@ -133,7 +125,7 @@ function start()
 	console.log("game starts");
 	gameStart = true;
 	
-	broadcast({start: true});
+	sendAll({start: true});
 }
 
 function reset()

@@ -1,15 +1,8 @@
 
-direction = new function() {	
-	this.Up = 4;
-	this.Down = 1;
-	this.Left = 2;
-	this.Right = 3;
-	this.Nil = 5;
-}
 
 Snake = function(startingPoint, startingLength, startingDirection) {
 	this.score = 0;
-	this.pts = new Array();
+	this.pts = []
 	this.pts.push(startingPoint);
 	this.lag = startingLength;
 	this.direct = startingDirection;
@@ -25,12 +18,6 @@ Snake.prototype.setSnake = function(tmpSnake)
 	this.direct = tmpSnake.direct;
 	this.directQueue = tmpSnake.directQueue.slice();
 }
-
-
-
-
-
-
 
 
 Snake.prototype.reset = function(startingPoint, startingLength, startingDirection)
@@ -59,16 +46,16 @@ Snake.prototype.move = function() {
 	}
 	switch(this.direct)
 	{
-		case direction.Up:
+		case Direction.UP:
 			pt.setY(pt.y - 1);
 			break;
-		case direction.Down:
+		case Direction.DOWN:
 			pt.setY(pt.y + 1);
 			break;
-		case direction.Left:
+		case Direction.LEFT:
 			pt.setX(pt.x - 1);
 			break;
-		case direction.Right:
+		case Direction.RIGHT:
 			pt.setX(pt.x + 1);
 			break;
 	}
@@ -85,13 +72,13 @@ Snake.prototype.setPoint = function(point) {
 
 
 
-Snake.prototype.changeDirection = function(direction, check) {
+Snake.prototype.changeDirection = function(dir, check) {
 	var ret = false;
-	if(	(this.direct != direction &&	// not the same direction
-		!this.isOpposite(direction)) ||	// nothing is stored in the history movemen
+	if(	(this.direct != dir &&	// not the same direction
+		!this.isOpposite(dir)) ||	// nothing is stored in the history movemen
 		 this.directQueue.length > 0)		
 	{
-		this.directQueue.push(direction)
+		this.directQueue.push(dir)
 		ret = true;
 	}
 	
@@ -115,26 +102,26 @@ Snake.prototype.same = function(snake) {
 	
 	return ((this.lag == snake.lag) && 
 			(this.direct == snake.direct) &&
-			(pt1.hit(pt2)));
+			(pt1.equals(pt2)));
 }
 
 
 
-Snake.prototype.isOpposite = function(direct) {
+Snake.prototype.isOpposite = function(dir) {
 	ret = false;
 	switch(this.direct)
 	{
-		case direction.Up:
-			ret = (direct == direction.Down);
+		case Direction.UP:
+			ret = (dir == Direction.DOWN);
 			break;
-		case direction.Down:
-			ret = (direct == direction.Up);
+		case Direction.DOWN:
+			ret = (dir == Direction.UP);
 			break;
-		case direction.Left:
-			ret = (direct == direction.Right);
+		case Direction.LEFT:
+			ret = (dir == Direction.RIGHT);
 			break;
-		case direction.Right:
-			ret = (direct == direction.Left);
+		case Direction.RIGHT:
+			ret = (dir == Direction.LEFT);
 			break;
 	}
 	return ret;
@@ -143,48 +130,33 @@ Snake.prototype.isOpposite = function(direct) {
 
 
 Snake.prototype.suicide = function() {
-	return this.hit(this.getHead(), false);
+	var snakeHead = this.getHead();
+	for(var i= 1 ; i<this.pts.length; i++)
+	{
+		if(snakeHead.equals(this.pts[i]))
+			return true;
+	}
+	return false;
 }
 
 
 Snake.prototype.contains = function(point) {
-	return this.hit(point, true);
-}
-
-
-Snake.prototype.hit = function(point, includeHead) {
-	var length = this.pts.length;
-	
-	for(var i= (includeHead ? 0 : 1) ; i<length; i++)
+	for(var i= 0 ; i<this.pts.length; i++)
 	{
-		if(point.hit(this.pts[i]))
+		if(point.equals(this.pts[i]))
 			return true;
 	}
-	
 	return false;
 }
 
-
-Snake.prototype.hitSnake = function(snake) {
-	var length = this.pts.length>= 5 ? Math.floor(0.3 * this.pts.length) : 1;
-	
-	for (var i = 0 ; i < length ; i++) 
-	{
-		for(var j = 0; j<snake.pts.length; j++)
-		{
-			if(this.pts[i].x == snake.pts[j].x && this.pts[i].y == snake.pts[j].y) 
-			{
-				return true;
-			}
-		}
-	}
-	return false;
+Snake.prototype.hitSnake = function(otherSnake) {
+	return otherSnake.contains(this.getHead());
 }
 
 
 
 Snake.prototype.getHead = function()
 {
-	return this.pts[0];
+	return new Point(this.pts[0]);
 }
 
