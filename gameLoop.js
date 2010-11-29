@@ -293,15 +293,16 @@ function gameLoop()
 		amAlive = 	((insideGameBoard(snakes[playerId].getHead())) &&		
 				!hitOtherSnakes() && 
 				!snakes[playerId].suicide());											
-
-		if (amAlive) {
-			draw();
-		}
+		
+		draw();
 	}
 	if (!amAlive)
 	{
+		sendAllSnakes();
+		
 		var msg = {gameOver: true};
-		sendSnake(msg);
+		sendMsg(msg);
+		
 
 		endGame();
 	}

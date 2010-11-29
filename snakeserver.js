@@ -75,7 +75,7 @@ socket.on('connection', function(client){
 		console.log(msg);
 		if(gameStart)
 		{
-			if(msg.snake || msg.food) 
+			if(msg.snake || msg.food || msg.gameOver) 
 			{
 				client.broadcast(msg);
 			}
